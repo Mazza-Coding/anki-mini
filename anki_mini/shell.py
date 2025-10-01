@@ -12,6 +12,7 @@ from .stats import StatsCalculator, print_stats
 from .config import load_config
 from .init import initialize_data_dir
 from .utils import read_json
+from .migration import export_data, import_data
 
 
 class InteractiveShell:
@@ -105,6 +106,8 @@ class InteractiveShell:
             'list': self.cmd_list_cards,
             'import': self.cmd_import,
             'export': self.cmd_export,
+            'export-data': self.cmd_export_data,
+            'import-data': self.cmd_import_data,
             'clear': self.cmd_clear,
         }
         
@@ -142,6 +145,10 @@ class InteractiveShell:
         print("  Study:")
         print("    review, r          - Start review session")
         print("    stats, s           - Show statistics")
+        print()
+        print("  Data Migration:")
+        print("    export-data [file] - Export all app data for device migration")
+        print("    import-data [file] - Import all app data from backup")
         print()
         print("  Other:")
         print("    clear              - Clear screen")
@@ -516,6 +523,128 @@ class InteractiveShell:
                 print(f"✅ Deck '{deck_info['display_name']}' deleted!")
             else:
                 print("Cancelled.")
+        
+        except Exception as e:
+            print(f"Error: {e}")
+    
+    def cmd_export_data(self, args: str):
+        """Export complete app data for migration."""
+        try:
+            if args:
+                # File path provided
+                dest = Path(args)
+            else:
+                # Open save dialog
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                    from datetime import datetime
+                    
+                    root = tk.Tk()
+                    root.withdraw()
+                    root.attributes('-topmost', True)
+                    
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    default_name = f"anki-mini-export-{timestamp}.zip"
+                    
+                    file_path = filedialog.asksaveasfilename(
+                        title="Save complete data export",
+                        defaultextension=".zip",
+                        initialfile=default_name,
+                        filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
+                    )
+                    
+                    root.destroy()
+                    
+                    if not file_path:
+                        print("Export cancelled")
+                        return
+                    
+                    dest = Path(file_path)
+                except Exception as e:
+                    print(f"Error opening save dialog: {e}")
+                    return
+            
+            # Export all data
+            print("Exporting complete app data...")
+            output_path = export_data(dest, self.data_dir)
+            print(f"✅ Export complete: {output_path}")
+            print("\nThis file contains:")
+            print("  • All decks (cards + learning progress)")
+            print("  • App settings")
+            print("  • Active deck selection")
+            print("\nYou can import this on another device using 'import-data' command.")
+        
+        except Exception as e:
+            print(f"Error: {e}")
+    
+    def cmd_import_data(self, args: str):
+        """Import complete app data from migration file."""
+        try:
+            if args:
+                # Parse arguments (file path and optional flags)
+                parts = args.split()
+                source = Path(parts[0])
+                merge = '--merge' in parts
+                overwrite = '--overwrite' in parts
+            else:
+                # Open file picker
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                    
+                    root = tk.Tk()
+                    root.withdraw()
+                    root.attributes('-topmost', True)
+                    
+                    file_path = filedialog.askopenfilename(
+                        title="Select data export file to import",
+                        filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
+                    )
+                    
+                    root.destroy()
+                    
+                    if not file_path:
+                        print("Import cancelled")
+                        return
+                    
+                    source = Path(file_path)
+                    merge = False
+                    overwrite = False
+                except Exception as e:
+                    print(f"Error opening file picker: {e}")
+                    return
+            
+            if not source.exists():
+                print(f"Error: File not found: {source}")
+                return
+            
+            # Confirm import action
+            if not merge:
+                print("⚠️  WARNING: This will REPLACE all existing data!")
+                print("   Add '--merge' to merge with existing data instead.")
+                print("   A backup will be created automatically.")
+                confirm = input("\nContinue? (yes/y): ").strip().lower()
+                if confirm not in ['yes', 'y']:
+                    print("Import cancelled")
+                    return
+            
+            # Import data
+            print("Importing app data...")
+            stats = import_data(source, merge=merge, overwrite=overwrite, data_dir=self.data_dir)
+            
+            # Print results
+            print("\n✅ Import complete!")
+            print(f"\nStatistics:")
+            print(f"  • Decks imported: {stats['decks_imported']}")
+            print(f"  • Decks skipped: {stats['decks_skipped']}")
+            print(f"  • Total cards: {stats['total_cards']}")
+            print(f"  • Settings imported: {'Yes' if stats['settings_imported'] else 'No'}")
+            
+            if stats['errors']:
+                print(f"\n⚠️  Errors encountered:")
+                for error in stats['errors']:
+                    print(f"  • {error}")
         
         except Exception as e:
             print(f"Error: {e}")

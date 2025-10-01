@@ -12,6 +12,7 @@ from .cards import CardManager
 from .review import start_review
 from .stats import StatsCalculator, print_stats
 from .init import initialize_data_dir
+from .migration import export_data, import_data
 
 
 def cmd_init(args) -> int:
@@ -292,6 +293,135 @@ def cmd_export(args) -> int:
         return 1
 
 
+def cmd_export_data(args) -> int:
+    """Export complete app data for migration."""
+    data_dir = get_data_dir(args.data_dir)
+    
+    try:
+        # Get destination file
+        if args.path:
+            dest = Path(args.path)
+        else:
+            # Open save dialog
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                from datetime import datetime
+                
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes('-topmost', True)
+                
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                default_name = f"anki-mini-export-{timestamp}.zip"
+                
+                file_path = filedialog.asksaveasfilename(
+                    title="Save complete data export",
+                    defaultextension=".zip",
+                    initialfile=default_name,
+                    filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
+                )
+                
+                root.destroy()
+                
+                if not file_path:
+                    print("Export cancelled")
+                    return 0
+                
+                dest = Path(file_path)
+            except Exception as e:
+                print(f"Error opening save dialog: {e}", file=sys.stderr)
+                return 1
+        
+        # Export all data
+        print("Exporting complete app data...")
+        output_path = export_data(dest, data_dir)
+        print(f"✅ Export complete: {output_path}")
+        print("\nThis file contains:")
+        print("  • All decks (cards + learning progress)")
+        print("  • App settings")
+        print("  • Active deck selection")
+        print("\nYou can import this on another device using 'import-data' command.")
+        
+        return 0
+    
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_import_data(args) -> int:
+    """Import complete app data from migration file."""
+    data_dir = get_data_dir(args.data_dir)
+    
+    try:
+        # Get source file
+        if args.path:
+            source = Path(args.path)
+        else:
+            # Open file picker
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes('-topmost', True)
+                
+                file_path = filedialog.askopenfilename(
+                    title="Select data export file to import",
+                    filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
+                )
+                
+                root.destroy()
+                
+                if not file_path:
+                    print("Import cancelled")
+                    return 0
+                
+                source = Path(file_path)
+            except Exception as e:
+                print(f"Error opening file picker: {e}", file=sys.stderr)
+                return 1
+        
+        if not source.exists():
+            print(f"Error: File not found: {source}", file=sys.stderr)
+            return 1
+        
+        # Confirm import action
+        if not args.merge and not args.yes:
+            print("⚠️  WARNING: This will REPLACE all existing data!")
+            print("   Use --merge to merge with existing data instead.")
+            print("   A backup will be created automatically.")
+            confirm = input("\nContinue? (yes/y): ").strip().lower()
+            if confirm not in ['yes', 'y']:
+                print("Import cancelled")
+                return 0
+        
+        # Import data
+        print("Importing app data...")
+        stats = import_data(source, merge=args.merge, overwrite=args.overwrite, data_dir=data_dir)
+        
+        # Print results
+        print("\n✅ Import complete!")
+        print(f"\nStatistics:")
+        print(f"  • Decks imported: {stats['decks_imported']}")
+        print(f"  • Decks skipped: {stats['decks_skipped']}")
+        print(f"  • Total cards: {stats['total_cards']}")
+        print(f"  • Settings imported: {'Yes' if stats['settings_imported'] else 'No'}")
+        
+        if stats['errors']:
+            print(f"\n⚠️  Errors encountered:")
+            for error in stats['errors']:
+                print(f"  • {error}")
+        
+        return 0
+    
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create CLI argument parser."""
     parser = argparse.ArgumentParser(
@@ -309,6 +439,8 @@ Examples:
   anki-mini stats                       Show statistics
   anki-mini import cards.txt            Import cards
   anki-mini export                      Export cards with dialog
+  anki-mini export-data                 Export all data for migration
+  anki-mini import-data backup.zip      Import all data from backup
         """
     )
     
@@ -357,6 +489,17 @@ Examples:
     export_parser.add_argument('--deck', help='Source deck (default: active)')
     export_parser.add_argument('--all', action='store_true', help='Export all decks')
     
+    # export-data (full migration)
+    export_data_parser = subparsers.add_parser('export-data', help='Export complete app data for migration')
+    export_data_parser.add_argument('path', nargs='?', help='Destination file (or use picker)')
+    
+    # import-data (full migration)
+    import_data_parser = subparsers.add_parser('import-data', help='Import complete app data from migration file')
+    import_data_parser.add_argument('path', nargs='?', help='Source file (or use picker)')
+    import_data_parser.add_argument('--merge', action='store_true', help='Merge with existing data instead of replacing')
+    import_data_parser.add_argument('--overwrite', action='store_true', help='Overwrite existing decks with same name')
+    import_data_parser.add_argument('--yes', '-y', action='store_true', help='Skip confirmation prompt')
+    
     return parser
 
 
@@ -381,6 +524,8 @@ def main() -> int:
         'stats': cmd_stats,
         'import': cmd_import,
         'export': cmd_export,
+        'export-data': cmd_export_data,
+        'import-data': cmd_import_data,
     }
     
     handler = commands.get(args.command)
