@@ -26,13 +26,8 @@ class StatsCalculator:
         learning = 0
         review = 0
         due_today = 0
-        next_review_date = None
-        next_review_count = 0
         
         today = datetime.now().strftime('%Y-%m-%d')
-        
-        # Track upcoming reviews by date
-        upcoming_reviews = {}
         
         for card_id, _, _ in all_cards:
             if card_id not in cards_state:
@@ -49,16 +44,6 @@ class StatsCalculator:
                 
                 if SM2Scheduler.is_due(card):
                     due_today += 1
-                else:
-                    # Track future due dates
-                    due_date = card.get('due')
-                    if due_date and due_date > today:
-                        upcoming_reviews[due_date] = upcoming_reviews.get(due_date, 0) + 1
-        
-        # Find next review date
-        if upcoming_reviews:
-            next_review_date = min(upcoming_reviews.keys())
-            next_review_count = upcoming_reviews[next_review_date]
         
         # Calculate review accuracy for recent periods
         accuracy_7d = self._calculate_accuracy(days=7)
@@ -72,8 +57,6 @@ class StatsCalculator:
             'review': review,
             'due_today': due_today,
             'reviews_today': reviews_today,
-            'next_review_date': next_review_date,
-            'next_review_count': next_review_count,
             'accuracy_7d': accuracy_7d,
             'accuracy_30d': accuracy_30d
         }
@@ -129,23 +112,6 @@ def print_stats(stats: Dict[str, Any], deck_name: str) -> None:
     print(f"  Review: {stats['review']}")
     print(f"\nDue today: {stats['due_today']}")
     print(f"Reviews today: {stats['reviews_today']}")
-    
-    # Show next review date
-    if stats['next_review_date']:
-        next_date = stats['next_review_date']
-        next_count = stats['next_review_count']
-        
-        # Calculate days until next review
-        today = datetime.now().date()
-        next_review = datetime.strptime(next_date, '%Y-%m-%d').date()
-        days_until = (next_review - today).days
-        
-        if days_until == 1:
-            print(f"\nNext review: Tomorrow ({next_count} card{'s' if next_count > 1 else ''})")
-        else:
-            print(f"\nNext review: {next_date} ({days_until} days, {next_count} card{'s' if next_count > 1 else ''})")
-    elif stats['due_today'] == 0 and stats['total_cards'] > 0:
-        print(f"\nNext review: All cards reviewed!")
     
     if stats['accuracy_7d'] is not None:
         print(f"\nAccuracy (7 days): {stats['accuracy_7d']:.1f}%")
