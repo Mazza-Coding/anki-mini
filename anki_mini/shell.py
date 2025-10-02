@@ -7,7 +7,7 @@ from typing import Optional
 from .utils import get_data_dir
 from .deck import DeckManager
 from .cards import CardManager
-from .review import start_review
+from .review import start_review, start_practice
 from .stats import StatsCalculator, print_stats
 from .config import load_config
 from .init import initialize_data_dir
@@ -108,6 +108,8 @@ class InteractiveShell:
             'remove': self.cmd_delete_card,
             'review': self.cmd_review,
             'r': self.cmd_review,
+            'practice': self.cmd_practice,
+            'p': self.cmd_practice,
             'stats': self.cmd_stats,
             's': self.cmd_stats,
             'decks': self.cmd_decks,
@@ -156,7 +158,8 @@ class InteractiveShell:
                 ("export [file]", "Export cards to file")
             ]),
             ("Study", [
-                ("review, r", "Start review session"),
+                ("review, r", "Start review session (due cards only)"),
+                ("practice, p [limit]", "Practice all cards (hardest first)"),
                 ("stats, s", "Show statistics")
             ]),
             ("Data Migration", [
@@ -208,6 +211,28 @@ class InteractiveShell:
             deck_path = self.deck_manager.get_deck_path()
             threshold = self.config.get('lenient_threshold', 2)
             start_review(deck_path, threshold)
+        except Exception as e:
+            print(f"Error: {e}")
+    
+    def cmd_practice(self, args: str):
+        """Start practice session with all cards (hardest first)."""
+        try:
+            deck_path = self.deck_manager.get_deck_path()
+            threshold = self.config.get('lenient_threshold', 2)
+            
+            # Parse optional limit argument
+            limit = None
+            if args.strip():
+                try:
+                    limit = int(args.strip())
+                    if limit <= 0:
+                        print("Error: Limit must be a positive number")
+                        return
+                except ValueError:
+                    print("Error: Invalid limit. Usage: practice [number]")
+                    return
+            
+            start_practice(deck_path, threshold, limit)
         except Exception as e:
             print(f"Error: {e}")
     

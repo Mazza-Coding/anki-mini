@@ -9,7 +9,7 @@ from .utils import get_data_dir
 from .config import load_config
 from .deck import DeckManager
 from .cards import CardManager
-from .review import start_review
+from .review import start_review, start_practice
 from .stats import StatsCalculator, print_stats
 from .init import initialize_data_dir
 from .migration import export_data, import_data
@@ -134,6 +134,24 @@ def cmd_review(args) -> int:
         deck_path = deck_manager.get_deck_path(args.deck)
         threshold = config.get('lenient_threshold', 2)
         start_review(deck_path, threshold)
+        return 0
+    
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_practice(args) -> int:
+    """Start practice session with all cards (hardest first)."""
+    data_dir = get_data_dir(args.data_dir)
+    deck_manager = DeckManager(data_dir)
+    config = load_config(data_dir)
+    
+    try:
+        deck_path = deck_manager.get_deck_path(args.deck)
+        threshold = config.get('lenient_threshold', 2)
+        limit = args.limit if hasattr(args, 'limit') else None
+        start_practice(deck_path, threshold, limit)
         return 0
     
     except Exception as e:
@@ -435,7 +453,9 @@ Examples:
   anki-mini deck new "Spanish Vocab"   Create new deck
   anki-mini deck select spanish-vocab  Set active deck
   anki-mini add                         Add card interactively
-  anki-mini review                      Start review session
+  anki-mini review                      Start review session (due cards)
+  anki-mini practice                    Practice all cards (hardest first)
+  anki-mini practice --limit 10         Practice 10 hardest cards
   anki-mini stats                       Show statistics
   anki-mini import cards.txt            Import cards
   anki-mini export                      Export cards with dialog
@@ -472,6 +492,11 @@ Examples:
     # review
     review_parser = subparsers.add_parser('review', help='Start review session')
     review_parser.add_argument('--deck', help='Deck to review (default: active)')
+    
+    # practice
+    practice_parser = subparsers.add_parser('practice', help='Practice all cards (hardest first)')
+    practice_parser.add_argument('--deck', help='Deck to practice (default: active)')
+    practice_parser.add_argument('--limit', type=int, help='Maximum number of cards to practice')
     
     # stats
     stats_parser = subparsers.add_parser('stats', help='Show statistics')
@@ -521,6 +546,7 @@ def main() -> int:
         'deck': cmd_deck,
         'add': cmd_add,
         'review': cmd_review,
+        'practice': cmd_practice,
         'stats': cmd_stats,
         'import': cmd_import,
         'export': cmd_export,

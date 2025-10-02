@@ -83,6 +83,45 @@ class CardManager:
         
         return due_cards
     
+    def get_all_cards_by_difficulty(self) -> List[Tuple[str, str, str]]:
+        """Get all cards sorted by difficulty (hardest first).
+        
+        Difficulty is based on:
+        1. Cards with lapses (more lapses = harder)
+        2. Cards with lower ease factor
+        3. Cards with more reviews but lower ease
+        """
+        state = read_json(self.state_file, {})
+        cards_state = state.get('cards', {})
+        
+        all_cards = self.get_all_cards()
+        
+        # Create list with difficulty scores
+        cards_with_difficulty = []
+        for card_id, front, back in all_cards:
+            if card_id in cards_state:
+                card_state = cards_state[card_id]
+                # Calculate difficulty score (higher = harder)
+                # Factors: lapses (most important), low ease, high reps with low ease
+                lapses = card_state.get('lapses', 0)
+                ease = card_state.get('ease', 2.5)
+                reps = card_state.get('reps', 0)
+                
+                # Difficulty score: lapses are most important, then inverted ease
+                # Cards with more lapses and lower ease are harder
+                difficulty = (lapses * 10) + (2.5 - ease) * 5 + (reps * 0.1 if ease < 2.3 else 0)
+            else:
+                # New cards have medium difficulty
+                difficulty = 1.0
+            
+            cards_with_difficulty.append((difficulty, card_id, front, back))
+        
+        # Sort by difficulty (highest first = hardest first)
+        cards_with_difficulty.sort(key=lambda x: x[0], reverse=True)
+        
+        # Return without difficulty score
+        return [(card_id, front, back) for _, card_id, front, back in cards_with_difficulty]
+    
     def update_card_state(self, card_id: str, new_state: dict) -> None:
         """Update state for a specific card."""
         with deck_lock(self.deck_path):

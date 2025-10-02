@@ -167,3 +167,176 @@ def start_review(deck_path: Path, lenient_threshold: int = 2) -> None:
     """Start review session for a deck with learning queue support."""
     session = ReviewSession(deck_path, lenient_threshold)
     session.run()
+
+
+def start_practice(deck_path: Path, lenient_threshold: int = 2, limit: Optional[int] = None) -> None:
+    """Start practice session with all cards, sorted by difficulty (hardest first).
+    
+    Args:
+        deck_path: Path to the deck directory
+        lenient_threshold: Threshold for lenient answer matching
+        limit: Maximum number of cards to practice (None = all cards)
+    """
+    card_manager = CardManager(deck_path)
+    
+    # Get all cards sorted by difficulty
+    all_cards = card_manager.get_all_cards_by_difficulty()
+    
+    if not all_cards:
+        print("No cards in this deck!")
+        return
+    
+    # Apply limit if specified
+    if limit and limit < len(all_cards):
+        cards_to_practice = all_cards[:limit]
+        print(f"\n{len(cards_to_practice)} card(s) selected for practice (hardest cards)")
+    else:
+        cards_to_practice = all_cards
+        print(f"\n{len(cards_to_practice)} card(s) available for practice")
+    
+    print("Starting practice mode - cards sorted by difficulty (hardest first)")
+    print("Controls: [Tab] reveal answer, [Esc] exit, [1-4] grade")
+    print("Grades: 1=Again, 2=Hard, 3=Good, 4=Easy")
+    print("\nℹ️  'Again' shows immediately, 'Hard' shows after other cards\n")
+    
+    # Create practice session
+    session_stats = {
+        'reviewed': 0,
+        'correct': 0,
+        'incorrect': 0,
+        'learning': 0,
+        'graduated': 0
+    }
+    
+    immediate_queue = deque()
+    delayed_queue = deque()
+    main_queue = deque(cards_to_practice)
+    cards_seen = set()
+    total_reviews = 0
+    
+    while main_queue or immediate_queue or delayed_queue:
+        # Priority: immediate queue > main queue > delayed queue
+        if immediate_queue:
+            card_id, front, back = immediate_queue.popleft()
+            queue_type = "Again"
+        elif main_queue:
+            card_id, front, back = main_queue.popleft()
+            queue_type = "Practice"
+        elif delayed_queue:
+            card_id, front, back = delayed_queue.popleft()
+            queue_type = "Learning"
+        else:
+            break
+        
+        cards_seen.add(card_id)
+        total_reviews += 1
+        
+        # Get current card state
+        state = read_json(deck_path / 'state.json', {})
+        card_state = state.get('cards', {}).get(card_id, SM2Scheduler.new_card())
+        
+        # Show card info with difficulty indicators
+        learning_status = SM2Scheduler.get_learning_step_name(card_state)
+        lapses = card_state.get('lapses', 0)
+        ease = card_state.get('ease', 2.5)
+        
+        difficulty_indicator = ""
+        if lapses > 0:
+            difficulty_indicator = f" [Lapses: {lapses}]"
+        if ease < 2.0:
+            difficulty_indicator += f" [Low ease: {ease:.2f}]"
+        
+        print(f"--- Card {total_reviews}/{len(cards_to_practice)} [{learning_status}]{difficulty_indicator} ---")
+        print(f"Front: {front}")
+        
+        # Start timer
+        start_time = time.perf_counter()
+        
+        try:
+            user_answer = input("Your answer: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nPractice session ended.")
+            break
+        
+        # Check for reveal (Tab would be typed as empty or special handling)
+        if user_answer.lower() in ['tab', '\\t', '']:
+            print(f"Expected: {back}")
+            print("Counted as: Again")
+            grade = 1
+            elapsed = 0
+            correct = False
+        else:
+            elapsed = time.perf_counter() - start_time
+            
+            # Check answer
+            correct, match_type = check_answer(user_answer, back, lenient_threshold)
+            
+            if correct:
+                print(f"✅ Correct ({match_type})")
+                session_stats['correct'] += 1
+            else:
+                print(f"❌ Incorrect")
+                print(f"Expected: {back}")
+                print(f"Your answer: {user_answer}")
+                session_stats['incorrect'] += 1
+            
+            # Suggest grade
+            suggested = SM2Scheduler.suggest_grade(correct, elapsed)
+            grade_names = {1: 'Again', 2: 'Hard', 3: 'Good', 4: 'Easy'}
+            
+            print(f"\nSuggested: [{suggested}] {grade_names[suggested]}")
+            grade_input = input("Grade [1-4, Enter=suggested]: ").strip()
+            
+            if not grade_input:
+                grade = suggested
+            else:
+                try:
+                    grade = int(grade_input)
+                    if grade not in [1, 2, 3, 4]:
+                        grade = suggested
+                except ValueError:
+                    grade = suggested
+        
+        # Update card state
+        new_state = SM2Scheduler.schedule(card_state, grade)
+        
+        # Check if card needs to be re-queued in this session
+        if new_state.get('needs_requeue', False):
+            requeue_type = new_state.get('requeue_type', 'delayed')
+            
+            if requeue_type == 'immediate':
+                immediate_queue.append((card_id, front, back))
+                session_stats['learning'] += 1
+                print("↻ Card will be shown again immediately")
+            else:  # delayed
+                delayed_queue.append((card_id, front, back))
+                session_stats['learning'] += 1
+                print("↻ Card will be shown again after other cards")
+        else:
+            if SM2Scheduler.is_learning(card_state) and not SM2Scheduler.is_learning(new_state):
+                session_stats['graduated'] += 1
+                print("🎓 Card graduated from learning!")
+        
+        # Remove temporary flags before saving
+        new_state.pop('needs_requeue', None)
+        new_state.pop('requeue_type', None)
+        card_manager.update_card_state(card_id, new_state)
+        session_stats['reviewed'] += 1
+        
+        print()  # Blank line between cards
+    
+    # Session summary
+    print("\n=== Practice Session Complete ===")
+    print(f"Unique cards reviewed: {len(cards_seen)}")
+    print(f"Total reviews: {total_reviews}")
+    if session_stats['reviewed'] > 0:
+        accuracy = (session_stats['correct'] / session_stats['reviewed']) * 100
+        print(f"Accuracy: {accuracy:.1f}%")
+        print(f"Correct: {session_stats['correct']}, Incorrect: {session_stats['incorrect']}")
+    if session_stats['graduated'] > 0:
+        print(f"Cards graduated: {session_stats['graduated']}")
+    
+    # Show remaining cards in queues
+    remaining = len(immediate_queue) + len(delayed_queue)
+    if remaining > 0:
+        print(f"\nℹ️  {remaining} card(s) still in learning (will appear in next session)")
