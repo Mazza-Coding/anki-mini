@@ -7,9 +7,9 @@ anki-mini is a lightweight, portable app with an interactive shell interface. Fe
 ## Features
 
 - 🎯 **Interactive Shell**: Persistent CLI interface
-- 📦 **Portable**: Single `.exe` file with data stored 
+- 📦 **Portable**: Single `.exe` file with data stored
 - 📚 **Multi-deck**: Create, manage, and switch between multiple decks
-- ⌨️ **Recall by typing**: Test yourself by typing answers 
+- ⌨️ **Recall by typing**: Test yourself by typing answers
 - 🧠 **Smart scheduling**: SM-2 algorithm with 4 grades (Again, Hard, Good, Easy)
 - ✏️ **Full CRUD**: Add, edit, delete, import/export cards and decks
 - 🔒 **Data safety**: Atomic writes, file locking, optional backups
@@ -76,7 +76,7 @@ Type 'help' for available commands or 'exit' to quit.
 
 Active deck: Default
 
-[Default]> 
+[Default]>
 ```
 
 ### Available Commands
@@ -84,6 +84,7 @@ Active deck: Default
 Type `help` in the shell to see all commands:
 
 #### Deck Management
+
 - `decks` - List all decks
 - `deck <name>` - Switch to a deck
 - `new <name>` - Create new deck
@@ -91,6 +92,7 @@ Type `help` in the shell to see all commands:
 - `deldeck [name]` - Delete deck (with confirmation)
 
 #### Card Operations
+
 - `add` - Add new card interactively
 - `list` - List all cards in active deck
 - `edit <number>` - Edit card by number from list
@@ -99,21 +101,24 @@ Type `help` in the shell to see all commands:
 - `export [file]` - Export cards to file (opens save dialog if no path)
 
 #### Study
+
 - `review` or `r` - Start review session
 - `stats` or `s` - Show statistics
 
 #### Data Migration
+
 - `export-data [file]` - Export complete app data for device migration
 - `import-data [file]` - Import complete app data from backup
 
 #### Other
+
 - `clear` - Clear screen
 - `help` or `?` - Show help
 - `exit`, `quit`, or `q` - Exit shell
 
 ### Example Session
 
-```
+````
 [Default]> add
 Add new card (Ctrl+C to cancel)
 Front: bonjour
@@ -138,7 +143,7 @@ Front: bonjour
 Your answer: hello
 ✅ Correct (exact)
 Suggested: [4] Easy
-Grade [1-4, Enter=suggested]: 
+Grade [1-4, Enter=suggested]:
 
 [Default]> stats
 === Stats for 'Default' ===
@@ -189,7 +194,7 @@ anki-mini.exe export
 # Full data migration (all decks, stats, settings)
 anki-mini.exe export-data
 anki-mini.exe import-data backup.zip
-```
+````
 
 ## Import/Export
 
@@ -210,6 +215,7 @@ au revoir<TAB>goodbye;bye
 For migrating between devices without USB, use the data migration commands:
 
 **Export all data:**
+
 ```powershell
 anki-mini.exe export-data
 # Or specify file path:
@@ -217,6 +223,7 @@ anki-mini.exe export-data my-backup.zip
 ```
 
 **Import all data:**
+
 ```powershell
 anki-mini.exe import-data my-backup.zip
 # Merge with existing data:
@@ -226,12 +233,14 @@ anki-mini.exe import-data my-backup.zip --merge --overwrite
 ```
 
 The export file includes:
+
 - ✅ All decks (cards + learning progress)
 - ✅ App settings
 - ✅ Active deck selection
 - ✅ Review statistics and scheduling data
 
 **Use cases:**
+
 - Transfer data to a new device
 - Create backups before major changes
 - Share your complete deck collection
@@ -290,16 +299,20 @@ MIT License - Free to use, modify, and distribute.
 ## Troubleshooting
 
 **"Deck is locked by another process"**
+
 - Close other anki-mini instances
 - Delete `.lock` file in the deck folder if crashed
 
 **Cards not showing as due**
+
 - Check system date/time is correct
 
 **Import/export dialog not appearing**
+
 - Specify file path explicitly: `import cards.txt`
 
 **Data migration between devices**
+
 - Use `export-data` on old device, transfer the .zip file
 - Use `import-data` on new device to restore everything
 

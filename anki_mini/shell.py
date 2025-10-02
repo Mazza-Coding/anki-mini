@@ -26,7 +26,7 @@ class InteractiveShell:
         
         # Check if initialized
         if not (self.data_dir / 'decks').exists():
-            print("Data directory not initialized. Initializing now...")
+            print("ℹ️  Data directory not initialized. Initializing now...")
             initialize_data_dir(self.data_dir)
         
         self.deck_manager = DeckManager(self.data_dir)
@@ -63,19 +63,31 @@ class InteractiveShell:
         print("Type 'help' for available commands or 'exit' to quit.")
         print()
         
-        # Show active deck
+        # Show active deck with stats
         active = self.deck_manager.get_active_deck()
         state = read_json(self.data_dir / 'decks' / active / 'state.json', {})
         display_name = state.get('display_name', active)
-        print(f"Active deck: {display_name}")
-        print()
+        
+        # Quick stats for active deck
+        try:
+            deck_path = self.deck_manager.get_deck_path()
+            calc = StatsCalculator(deck_path)
+            stats = calc.get_stats()
+            
+            print(f"Active deck: {display_name}")
+            print(f"  Cards: {stats['total_cards']} total, {stats['due_today']} due today")
+            print()
+        except Exception:
+            print(f"Active deck: {display_name}")
+            print()
     
     def print_prompt(self):
         """Print command prompt."""
         active = self.deck_manager.get_active_deck()
         state = read_json(self.data_dir / 'decks' / active / 'state.json', {})
         display_name = state.get('display_name', active)
-        print(f"[{display_name}]> ", end='', flush=True)
+        prompt_text = f"[{display_name}]> "
+        print(prompt_text, end='', flush=True)
     
     def execute_command(self, command: str):
         """Execute a command."""
@@ -116,45 +128,53 @@ class InteractiveShell:
             try:
                 handler(args)
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"❌ Error: {e}")
         else:
-            print(f"Unknown command: {cmd}")
+            print(f"❌ Unknown command: {cmd}")
             print("Type 'help' for available commands.")
         
         print()  # Blank line after command
     
     def cmd_help(self, args: str):
         """Show help."""
-        print("\nAvailable commands:")
-        print()
-        print("  Deck Management:")
-        print("    decks              - List all decks")
-        print("    deck <name>        - Switch to deck")
-        print("    new <name>         - Create new deck")
-        print("    rename <new_name>  - Rename active deck")
-        print("    deldeck [name]     - Delete deck (with confirmation)")
-        print()
-        print("  Card Operations:")
-        print("    add                - Add new card")
-        print("    list               - List all cards in active deck")
-        print("    edit <number>      - Edit card by number from list")
-        print("    delete <number>    - Delete card by number from list")
-        print("    import [file]      - Import cards from file")
-        print("    export [file]      - Export cards to file")
-        print()
-        print("  Study:")
-        print("    review, r          - Start review session")
-        print("    stats, s           - Show statistics")
-        print()
-        print("  Data Migration:")
-        print("    export-data [file] - Export all app data for device migration")
-        print("    import-data [file] - Import all app data from backup")
-        print()
-        print("  Other:")
-        print("    clear              - Clear screen")
-        print("    help, ?            - Show this help")
-        print("    exit, quit, q      - Exit shell")
-        print()
+        print("\n=== Available Commands ===\n")
+        
+        sections = [
+            ("Deck Management", [
+                ("decks", "List all decks"),
+                ("deck <name>", "Switch to deck"),
+                ("new <name>", "Create new deck"),
+                ("rename <new_name>", "Rename active deck"),
+                ("deldeck [name]", "Delete deck (with confirmation)")
+            ]),
+            ("Card Operations", [
+                ("add", "Add new card"),
+                ("list", "List all cards in active deck"),
+                ("edit <number>", "Edit card by number from list"),
+                ("delete <number>", "Delete card by number from list"),
+                ("import [file]", "Import cards from file"),
+                ("export [file]", "Export cards to file")
+            ]),
+            ("Study", [
+                ("review, r", "Start review session"),
+                ("stats, s", "Show statistics")
+            ]),
+            ("Data Migration", [
+                ("export-data [file]", "Export all app data for device migration"),
+                ("import-data [file]", "Import all app data from backup")
+            ]),
+            ("Other", [
+                ("clear", "Clear screen"),
+                ("help, ?", "Show this help"),
+                ("exit, quit, q", "Exit shell")
+            ])
+        ]
+        
+        for section_name, commands in sections:
+            print(f"{section_name}:")
+            for cmd, desc in commands:
+                print(f"  {cmd.ljust(20)} - {desc}")
+            print()
     
     def cmd_exit(self, args: str):
         """Exit the shell."""
@@ -166,12 +186,12 @@ class InteractiveShell:
             deck_path = self.deck_manager.get_deck_path()
             card_manager = CardManager(deck_path)
             
-            print("Add new card (Ctrl+C to cancel)")
+            print("ℹ️  Add new card (Ctrl+C to cancel)")
             front = input("Front: ").strip()
             back = input("Back:  ").strip()
             
             if not front or not back:
-                print("Error: Both front and back required")
+                print("❌ Error: Both front and back required")
                 return
             
             if card_manager.add_card(front, back):
@@ -180,7 +200,7 @@ class InteractiveShell:
                 print("⚠️  Card already exists (duplicate)")
         
         except KeyboardInterrupt:
-            print("\nCancelled")
+            print("\nℹ️  Cancelled")
     
     def cmd_review(self, args: str):
         """Start review session."""
@@ -209,13 +229,15 @@ class InteractiveShell:
         """List all decks."""
         decks = self.deck_manager.list_decks()
         if not decks:
-            print("No decks found.")
+            print("ℹ️  No decks found.")
             return
         
         print("\nAvailable decks:")
         for deck in decks:
-            marker = " ●" if deck['is_active'] else "  "
-            print(f"{marker} {deck['display_name']} ({deck['card_count']} cards)")
+            marker = " *" if deck['is_active'] else "  "
+            name = deck['display_name']
+            cards = f"({deck['card_count']} cards)"
+            print(f"{marker} {name} {cards}")
         print()
     
     def cmd_deck_select(self, args: str):
@@ -255,10 +277,8 @@ class InteractiveShell:
             
             print(f"\nCards in deck ({len(cards)} total):")
             for i, (card_id, front, back) in enumerate(cards, 1):
-                # Truncate long text
-                front_display = front[:40] + "..." if len(front) > 40 else front
-                back_display = back[:40] + "..." if len(back) > 40 else back
-                print(f"  {i}. {front_display} → {back_display}")
+                # Display full text without truncation
+                print(f"  {i}. {front} → {back}")
             print()
         except Exception as e:
             print(f"Error: {e}")
