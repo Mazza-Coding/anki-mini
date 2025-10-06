@@ -142,7 +142,7 @@ def cmd_review(args) -> int:
 
 
 def cmd_practice(args) -> int:
-    """Start practice session with all cards (hardest first)."""
+    """Start practice session with all cards in random order."""
     data_dir = get_data_dir(args.data_dir)
     deck_manager = DeckManager(data_dir)
     config = load_config(data_dir)
@@ -454,8 +454,8 @@ Examples:
   anki-mini deck select spanish-vocab  Set active deck
   anki-mini add                         Add card interactively
   anki-mini review                      Start review session (due cards)
-  anki-mini practice                    Practice all cards (hardest first)
-  anki-mini practice --limit 10         Practice 10 hardest cards
+  anki-mini practice                    Practice all cards (random order)
+  anki-mini practice --limit 10         Practice 10 hardest cards (random order)
   anki-mini stats                       Show statistics
   anki-mini import cards.txt            Import cards
   anki-mini export                      Export cards with dialog
@@ -494,9 +494,9 @@ Examples:
     review_parser.add_argument('--deck', help='Deck to review (default: active)')
     
     # practice
-    practice_parser = subparsers.add_parser('practice', help='Practice all cards (hardest first)')
+    practice_parser = subparsers.add_parser('practice', help='Practice all cards (random order)')
     practice_parser.add_argument('--deck', help='Deck to practice (default: active)')
-    practice_parser.add_argument('--limit', type=int, help='Maximum number of cards to practice')
+    practice_parser.add_argument('--limit', type=int, help='Maximum number of cards to practice (selects hardest cards)')
     
     # stats
     stats_parser = subparsers.add_parser('stats', help='Show statistics')

@@ -1,6 +1,7 @@
 """Interactive review session with recall by typing."""
 
 import time
+import random
 from pathlib import Path
 from typing import Optional, List, Tuple
 from collections import deque
@@ -33,6 +34,9 @@ class ReviewSession:
         if not due_cards:
             print("No cards due for review!")
             return
+        
+        # Randomize the order of due cards for review
+        random.shuffle(due_cards)
         
         print(f"\n{len(due_cards)} card(s) due for review\n")
         print("Controls: [Tab] reveal answer, [Esc] exit, [1-4] grade")
@@ -170,31 +174,43 @@ def start_review(deck_path: Path, lenient_threshold: int = 2) -> None:
 
 
 def start_practice(deck_path: Path, lenient_threshold: int = 2, limit: Optional[int] = None) -> None:
-    """Start practice session with all cards, sorted by difficulty (hardest first).
+    """Start practice session with all cards.
     
     Args:
         deck_path: Path to the deck directory
         lenient_threshold: Threshold for lenient answer matching
         limit: Maximum number of cards to practice (None = all cards)
+            When limit is specified, selects hardest cards first, then randomizes them
     """
     card_manager = CardManager(deck_path)
     
-    # Get all cards sorted by difficulty
-    all_cards = card_manager.get_all_cards_by_difficulty()
-    
-    if not all_cards:
-        print("No cards in this deck!")
-        return
-    
-    # Apply limit if specified
-    if limit and limit < len(all_cards):
-        cards_to_practice = all_cards[:limit]
-        print(f"\n{len(cards_to_practice)} card(s) selected for practice (hardest cards)")
+    # Apply limit if specified (select hardest cards)
+    if limit:
+        # Get cards sorted by difficulty to select the hardest ones
+        all_cards_sorted = card_manager.get_all_cards_by_difficulty()
+        if not all_cards_sorted:
+            print("No cards in this deck!")
+            return
+        
+        if limit < len(all_cards_sorted):
+            cards_to_practice = all_cards_sorted[:limit]
+            print(f"\n{len(cards_to_practice)} card(s) selected for practice (hardest cards)")
+        else:
+            cards_to_practice = all_cards_sorted
+            print(f"\n{len(cards_to_practice)} card(s) available for practice")
+        # Randomize the selected hard cards
+        random.shuffle(cards_to_practice)
     else:
+        # Get all cards and randomize them
+        all_cards = card_manager.get_all_cards()
+        if not all_cards:
+            print("No cards in this deck!")
+            return
         cards_to_practice = all_cards
+        random.shuffle(cards_to_practice)
         print(f"\n{len(cards_to_practice)} card(s) available for practice")
     
-    print("Starting practice mode - cards sorted by difficulty (hardest first)")
+    print("Starting practice mode - cards in random order")
     print("Controls: [Tab] reveal answer, [Esc] exit, [1-4] grade")
     print("Grades: 1=Again, 2=Hard, 3=Good, 4=Easy")
     print("\nℹ️  'Again' shows immediately, 'Hard' shows after other cards\n")
